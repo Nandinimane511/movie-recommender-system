@@ -1,3 +1,9 @@
+"""
+CineMatch AI - Content-Based Movie Recommender System
+Author: Nandini Mane
+Frontend: Streamlit with Responsive Cinema Glassmorphism UI
+"""
+
 import pickle
 import streamlit as st
 import requests

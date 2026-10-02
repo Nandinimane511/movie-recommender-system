@@ -1,3 +1,10 @@
+"""
+CineMatch AI - Model Preprocessing & Training Pipeline
+Author: Nandini Mane
+Description: Merges TMDB datasets, performs NLP feature extraction (Porter Stemming, CountVectorizer),
+             and builds a high-dimensional Cosine Similarity matrix for content-based movie recommendation.
+"""
+
 import os
 import ast
 import pickle
