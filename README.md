@@ -40,7 +40,7 @@ $$\text{Cosine Similarity}(A, B) = \frac{A \cdot B}{\|A\| \|B\|} = \frac{\sum_{i
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/<YOUR-USERNAME>/<YOUR-REPO-NAME>.git
+git clone https://github.com/Nandinimane511/movie-recommender-system.git
 cd "movie recommendation project"
 ```
 
