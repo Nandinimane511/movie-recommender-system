@@ -4,6 +4,7 @@ Author: Nandini Mane
 Frontend: Streamlit with Responsive Cinema Glassmorphism UI
 """
 
+import os
 import pickle
 import streamlit as st
 import requests
@@ -156,9 +157,15 @@ st.markdown("""
 def load_data():
     movies = pickle.load(open('model/movie_list.pkl', 'rb'))
     similarity = pickle.load(open('model/similarity.pkl', 'rb'))
-    return movies, similarity
+    knn_model = None
+    if os.path.exists('model/knn_model.pkl'):
+        try:
+            knn_model = pickle.load(open('model/knn_model.pkl', 'rb'))
+        except Exception:
+            pass
+    return movies, similarity, knn_model
 
-movies, similarity = load_data()
+movies, similarity, knn_model = load_data()
 
 # Fast Multi-source Poster Fetcher
 @st.cache_data(ttl=86400, show_spinner=False)
@@ -293,9 +300,10 @@ with st.sidebar:
     st.markdown("### 📊 Dataset Info")
     st.info(f"""
     * **Total Movies**: {len(movies):,}
-    * **ML Model**: Cosine Similarity
+    * **ML Model**: K-Nearest Neighbors (KNN)
+    * **Distance Metric**: Cosine Distance
     * **Features**: Genres, Cast, Crew, Overview
-    * **NLP**: CountVectorizer (5000 feats)
+    * **Vector Space**: CountVectorizer (5,000 D)
     """)
 
 

@@ -12,6 +12,7 @@ import pandas as pd
 import numpy as np
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.neighbors import NearestNeighbors
 from nltk.stem.porter import PorterStemmer
 
 print("Loading datasets...")
@@ -79,10 +80,14 @@ print("Stemming tags...")
 df['tags_stemmed'] = df['tags_str'].apply(stem)
 
 # Vectorization & Cosine Similarity
-print("Computing Cosine Similarity...")
+print("Computing Cosine Similarity & Training KNN Model...")
 cv = CountVectorizer(max_features=5000, stop_words='english')
 vectors = cv.fit_transform(df['tags_stemmed']).toarray()
 similarity = cosine_similarity(vectors)
+
+# Train K-Nearest Neighbors Machine Learning Model
+knn_model = NearestNeighbors(n_neighbors=6, metric='cosine', algorithm='brute')
+knn_model.fit(vectors)
 
 # Clean DataFrame to save with rich metadata
 rich_movies = df[[
@@ -94,5 +99,6 @@ os.makedirs("model", exist_ok=True)
 print("Saving model artifacts...")
 pickle.dump(rich_movies, open('model/movie_list.pkl', 'wb'))
 pickle.dump(similarity, open('model/similarity.pkl', 'wb'))
+pickle.dump(knn_model, open('model/knn_model.pkl', 'wb'))
 
-print("Enhanced Model Saved Successfully! (Total movies:", len(rich_movies), ")")
+print("Enhanced Models Saved Successfully! (Total movies:", len(rich_movies), ")")
