@@ -1,162 +1,174 @@
-# 🎬 CineMatch AI: System Documentation & Architecture Guide
+# 🎬 CineMatch AI: Complete Project Documentation
 
-**Project Title:** CineMatch AI — Content-Based Movie Recommendation System  
-**Author:** Nandini Mane  
-**Domain:** Machine Learning, Natural Language Processing (NLP) & Full-Stack Web Development  
-**GitHub Repository:** [Nandinimane511/movie-recommender-system](https://github.com/Nandinimane511/movie-recommender-system)  
-
----
-
-## 📌 1. Project Overview & Objective
-
-**CineMatch AI** is an intelligent, high-performance Content-Based Movie Recommendation System built on the **TMDB 5000 Movie Dataset**. 
-
-Unlike collaborative filtering systems that suffer from the *"cold-start problem"* (inability to recommend items to new users with no history), CineMatch AI operates on deep content metadata: **plot summaries, genre classifications, thematic keywords, top-billed actors, and film directors**.
-
-The system translates unstructured metadata into a **5,000-dimensional vector space**, trains an unsupervised **K-Nearest Neighbors (KNN)** Machine Learning model using **Cosine Distance**, and serializes model weights into disk-cached binary artifacts. A responsive **Streamlit** web application serves recommendations with sub-5ms query latency and live poster enrichment via external REST APIs.
+> **Project Title:** CineMatch AI — Content-Based Movie Recommendation System  
+> **Author & Developer:** Nandini Mane  
+> **Domain:** Machine Learning, Natural Language Processing (NLP) & Full-Stack Web Development  
+> **Core Algorithm:** K-Nearest Neighbors (KNN) with Cosine Distance Vector Space Modeling  
+> **GitHub Repository:** [Nandinimane511/movie-recommender-system](https://github.com/Nandinimane511/movie-recommender-system)  
 
 ---
 
-## 🏗️ 2. High-Level Architectural Flow
+## 📌 1. Project Overview
 
-The architecture follows a decoupled 4-tier design:
+**CineMatch AI** is an intelligent, production-ready movie recommendation system developed using the **TMDB 5000 Movie Dataset** (4,800+ films).
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                   TIER 1: OFFLINE TRAINING & NLP PIPELINE              │
-│  tmdb_5000_movies.csv + tmdb_5000_credits.csv                          │
-│     │                                                                  │
-│     ▼ (Clean, Merge on Title, Reset Index)                             │
-│  Unified DataFrame (4,806 Movies)                                      │
-│     │                                                                  │
-│     ▼ (AST JSON Parsing: Cast, Crew, Director, Genres, Keywords)       │
-│  Entity Space Collapsing ("Sam Worthington" -> "SamWorthington")        │
-│     │                                                                  │
-│     ▼ (Porter Stemming via NLTK)                                       │
-│  Unified Stemmed Tags String                                           │
-│     │                                                                  │
-│     ▼ (CountVectorizer max_features=5000)                              │
-│  Bag-of-Words Feature Matrix X ∈ ℝ^(4806 × 5000)                       │
-│     │                                                                  │
-│     ├─────────────────────────────────┐                                │
-│     ▼                                 ▼                                │
-│  Pairwise Cosine Similarity       NearestNeighbors (KNN)               │
-│  Matrix S ∈ [0, 1]^(4806 × 4806)  (metric='cosine', algorithm='brute') │
-└───────────────────────┬─────────────────┬──────────────────────────────┘
-                        │                 │
-                        ▼ (Serialization) ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                   TIER 2: SERIALIZATION BRIDGE (model/)                │
-│  • model/movie_list.pkl  (Clean DataFrame with metadata)               │
-│  • model/similarity.pkl  (Precomputed 4,806 × 4,806 Cosine Matrix)    │
-│  • model/knn_model.pkl   (Fitted K-Nearest Neighbors ML Model)         │
-└───────────────────────────────────────┬────────────────────────────────┘
-                                        │
-                                        ▼ (Loaded once into RAM)
-┌────────────────────────────────────────────────────────────────────────┐
-│                   TIER 3: BACKEND ENGINE (app.py)                      │
-│  • @st.cache_resource: In-memory RAM caching                           │
-│  • Vector Index Lookup: S[idx] or knn_model.kneighbors() (<5ms)       │
-│  • ThreadPoolExecutor: Parallel concurrent poster fetcher (OMDb / Wiki)│
-└───────────────────────────────────────┬────────────────────────────────┘
-                                        │
-                                        ▼ (JSON Payloads & Image URLs)
-┌────────────────────────────────────────────────────────────────────────┐
-│                   TIER 4: FRONTEND PRESENTATION (app.py)               │
-│  • Streamlit Web UI with Custom Cinema Glassmorphism CSS               │
-│  • Responsive Movie Cards with Hover Elevation Animations              │
-│  • Dynamic Badges (Match %, TMDB Star Rating, Genre Pills)             │
-│  • Expandable Modals: Full Synopsis, Director, Cast, YouTube Trailers  │
-└────────────────────────────────────────────────────────────────────────┘
+### 💡 Why Content-Based Filtering?
+Collaborative filtering systems require extensive user ratings and struggle when new users or items are introduced (the **"Cold-Start Problem"**). CineMatch AI eliminates this limitation by recommending movies strictly based on **semantic metadata similarity**:
+- 📖 **Plot Synopses** (Thematic storyline overviews)
+- 🎭 **Genre Classifications** (Action, Drama, Sci-Fi, Romance, etc.)
+- 🏷️ **Plot Keywords** (Specific story tropes, e.g., "dystopia", "space travel")
+- 🌟 **Top 3 Cast Members** (Lead billing actors)
+- 🎬 **Film Directors** (Auteur/directorial style)
+
+---
+
+## 🏗️ 2. End-to-End System Architecture
+
+The project is structured into **4 decoupled layers**:
+
+```mermaid
+flowchart TD
+    subgraph L1["Tier 1: Data Pipeline & Machine Learning (Offline)"]
+        CSV["TMDB 5000 Movies & Credits CSV"] --> Clean["Data Merging, Cleaning & DropNA (4,806 Movies)"]
+        Clean --> Parse["Metadata Extraction (AST: Cast, Director, Genres, Keywords)"]
+        Parse --> Space["Entity Space Collapsing (e.g., 'Sam Worthington' → 'SamWorthington')"]
+        Space --> Stem["Porter Stemming via NLTK (Stemmed Tag Strings)"]
+        Stem --> Vector["CountVectorizer (5,000 Dimensions)"]
+        Vector --> FeatMat["Feature Matrix X (4,806 × 5,000)"]
+        FeatMat --> SimMat["Cosine Similarity Matrix S (4,806 × 4,806)"]
+        FeatMat --> KNN["K-Nearest Neighbors Model (metric='cosine', brute)"]
+    end
+
+    subgraph L2["Tier 2: Serialization Bridge (model/ folder)"]
+        Clean --> P1["model/movie_list.pkl"]
+        SimMat --> P2["model/similarity.pkl"]
+        KNN --> P3["model/knn_model.pkl"]
+    end
+
+    subgraph L3["Tier 3: Backend Server (app.py)"]
+        P1 & P2 & P3 --> RAM["In-Memory RAM Cache (@st.cache_resource)"]
+        RAM --> Query["Recommendation Query Engine (< 5ms response)"]
+        Query --> API["Concurrent Poster Fetcher (OMDb + Wikipedia APIs)"]
+    end
+
+    subgraph L4["Tier 4: Frontend UI (app.py)"]
+        API --> UI["Cinema Glassmorphism Web App (Streamlit)"]
+        UI --> Cards["Dynamic Cards with Match %, Ratings & YouTube Trailers"]
+    end
 ```
 
 ---
 
-## 📓 3. The Jupyter Notebook (`Movie_Recommendation_System_EDA.ipynb`)
+## 📓 3. The Jupyter Notebook Guide (`Movie_Recommendation_System_EDA.ipynb`)
 
-The primary development and experimentation environment is [Movie_Recommendation_System_EDA.ipynb](file:///d:/movie%20recommendation%20project/Movie_Recommendation_System_EDA.ipynb). It is fully executed and divided into 9 sequential sections:
+The entire machine learning experimentation, exploratory data analysis, and mathematical modeling pipeline is implemented in [Movie_Recommendation_System_EDA.ipynb](file:///d:/movie%20recommendation%20project/Movie_Recommendation_System_EDA.ipynb).
 
-| Section # | Notebook Section Title | Code / Process Performed | Outputs Embedded in Notebook |
-|---|---|---|---|
-| **Section 1** | Import Libraries & Load Datasets | Imports `pandas`, `numpy`, `sklearn`, `nltk`, `matplotlib`, `seaborn`. Loads TMDB CSVs. | Dataset dimensions: Movies $(4803, 20)$, Credits $(4803, 4)$. |
-| **Section 2** | Exploratory Data Analysis: Correlation Matrix | Computes Pearson correlation across `budget`, `popularity`, `revenue`, `runtime`, `vote_average`, `vote_count`. | Formatted correlation matrix table + Annotated Seaborn **Blues** Heatmap (*Fig 2.1*). |
-| **Section 3** | Dataset Merging & Feature Selection | Merges on `title`, drops nulls, retains essential attributes, and applies `reset_index(drop=True)`. | Cleaned DataFrame: exactly **4,806** movie records. |
-| **Section 4** | Metadata Extraction | Uses `ast.literal_eval` to extract JSON arrays into Python lists: top 3 cast members, director, genres, and keywords. | Preview table displaying extracted list features. |
-| **Section 5** | NLP Preprocessing & Unified Tag Construction | Collapses entity spaces (`Christopher Nolan` $\rightarrow$ `ChristopherNolan`), concatenates tokens into single tag string, and applies `PorterStemmer`. | Sample stemmed tag text string for movie index 0 (*Avatar*). |
-| **Section 6** | Feature Matrix 1: Bag-of-Words Vector Space | Fits `CountVectorizer(max_features=5000, stop_words='english')`. | Matrix shape $(4806 \times 5000)$, Non-zero count: $145,410$, Sparsity: **$99.39\%$**, and sample slice DataFrame. |
-| **Section 7** | Feature Matrix 2: Pairwise Cosine Similarity | Computes pairwise `cosine_similarity(vectors)`. Verifies diagonal identity ($1.00$). | Cosine matrix shape $(4806 \times 4806)$ + Annotated Submatrix Heatmap across benchmark movies (*Fig 7.1*). |
-| **Section 8** | **Machine Learning Model: K-Nearest Neighbors (KNN)** | Trains `NearestNeighbors(n_neighbors=6, metric='cosine', algorithm='brute')`. Implements `recommend_with_knn()`. | Model architecture verification + Top-5 recommendation inference tests for *The Dark Knight*, *Interstellar*, *The Avengers*. |
-| **Section 9** | Export Trained Model Artifacts | Uses Python `pickle` to export `movie_list.pkl`, `similarity.pkl`, and `knn_model.pkl` into the `model/` directory. | Confirmation message with total indexed movies count ($4,806$). |
+### 📋 Section-by-Section Summary
+
+#### • Section 1: Library Ingestion & Dataset Loading
+- Loads `tmdb_5000_movies.csv` (4,803 rows, 20 columns) and `tmdb_5000_credits.csv` (4,803 rows, 4 columns).
+- Verifies shapes and initial column schemas.
+
+#### • Section 2: Exploratory Data Analysis & Feature Correlation
+- Computes **Pearson Correlation Coefficient ($r$)** across numerical features (`budget`, `popularity`, `revenue`, `runtime`, `vote_average`, `vote_count`).
+- **Key Finding:** Budget and revenue exhibit strong correlation ($r = 0.73$), while critic rating (`vote_average`) is independent of budget ($r = 0.09$).
+- Renders an annotated **Seaborn Blues Heatmap** embedded directly in the notebook output.
+
+#### • Section 3: Dataset Merging & Index Alignment
+- Inner-merges movies and credits on the `title` attribute.
+- Filters nulls on key metadata columns and executes `df.reset_index(drop=True)` to ensure exact 1-to-1 index alignment with matrix coordinates (retaining **4,806** clean samples).
+
+#### • Section 4: Metadata Parsing via AST
+- Parses stringified JSON objects using `ast.literal_eval`.
+- Extracts clean Python lists: Top 3 billed actors, the primary director, all genres, and all thematic keywords.
+
+#### • Section 5: NLP Preprocessing & Unified Tag Construction
+- **Space Collapsing:** Transforms `"Christopher Nolan"` $\rightarrow$ `"christophernolan"` to treat multi-word names as single semantic tokens.
+- **Porter Stemming:** Uses NLTK's `PorterStemmer` so inflected words (`loved`, `loving`, `love`) converge to root `love`.
+- Concatenates tokens into a single unified tag string per film.
+
+#### • Section 6: Bag-of-Words Feature Matrix
+- Uses `CountVectorizer(max_features=5000, stop_words='english')`.
+- **Feature Matrix Shape:** $4,806 \text{ rows} \times 5,000 \text{ columns}$.
+- **Non-zero counts:** $145,410$ terms.
+- **Matrix Sparsity:** $99.39\%$ (demonstrates high semantic distinction among films).
+
+#### • Section 7: Pairwise Cosine Similarity Matrix
+- Computes pairwise cosine similarity matrix $\mathbf{S} \in [0, 1]^{4806 \times 4806}$.
+- Verifies identity diagonal ($\mathbf{S}_{i,i} = 1.00$).
+- Displays submatrix table and renders an annotated **Cosine Similarity Heatmap** across representative benchmark films.
+
+#### • Section 8: K-Nearest Neighbors (KNN) Machine Learning Model
+- Trains `NearestNeighbors(n_neighbors=6, metric='cosine', algorithm='brute')` on feature matrix $\mathbf{X}$.
+- Implements `recommend_with_knn()`.
+- Validates model inference with top-5 recommendations for *The Dark Knight*, *Interstellar*, and *The Avengers*.
+
+#### • Section 9: Model Artifacts Export
+- Serializes `model/movie_list.pkl`, `model/similarity.pkl`, and `model/knn_model.pkl` for immediate production use.
 
 ---
 
 ## 🤖 4. Machine Learning Model: K-Nearest Neighbors (KNN)
 
-### Why K-Nearest Neighbors?
-In recommendation systems, KNN is a standard unsupervised metric-learning algorithm. It represents movies as coordinates in a 5,000-dimensional continuous space and indexes their neighborhood topology.
+### ❓ What is the ML Model?
+The system utilizes the **K-Nearest Neighbors (KNN)** algorithm (`sklearn.neighbors.NearestNeighbors`). In this unsupervised setting, KNN indexes 4,806 movies across a 5,000-dimensional metric space.
 
-### Mathematical Formulation
-Instead of Euclidean distance (which is sensitive to varying document lengths), KNN uses **Cosine Distance**:
+### 📐 Mathematical Formulation: Cosine Distance
+Standard Euclidean distance ($L_2$ norm) fails in high-dimensional text vectors due to document length variations. KNN uses **Cosine Distance**:
 
-$$\text{Cosine Distance } d(\vec{u}, \vec{v}) = 1.0 - \frac{\vec{u} \cdot \vec{v}}{\|\vec{u}\| \|\vec{v}\|} = 1.0 - \frac{\sum_{i=1}^{D} u_i v_i}{\sqrt{\sum_{i=1}^{D} u_i^2} \sqrt{\sum_{i=1}^{D} v_i^2}}$$
+$$\text{Cosine Distance } d(\vec{u}, \vec{v}) = 1.0 - \cos(\theta) = 1.0 - \frac{\vec{u} \cdot \vec{v}}{\|\vec{u}\| \|\vec{v}\|}$$
 
-Where:
-- $\vec{u}, \vec{v} \in \mathbb{R}^{5000}$: Document-term frequency vectors.
-- $D = 5,000$: Dimensionality of vocabulary space.
-- $d(\vec{u}, \vec{v}) \in [0.0, 1.0]$: $0.0$ indicates identical tag distribution; $1.0$ indicates orthogonal/unrelated topics.
+$$\text{Expanded: } d(\vec{u}, \vec{v}) = 1.0 - \frac{\sum_{k=1}^{5000} u_k \cdot v_k}{\sqrt{\sum_{k=1}^{5000} u_k^2} \cdot \sqrt{\sum_{k=1}^{5000} v_k^2}}$$
 
-The **Similarity Match Percentage** shown to the user is derived directly as:
+### 🔢 Similarity Percentage Conversion
 $$\text{Match Percentage} = (1.0 - d(\vec{u}, \vec{v})) \times 100\%$$
 
-### Model Specifications
-- **Class:** `sklearn.neighbors.NearestNeighbors`
-- **Metric:** `cosine`
-- **Algorithm:** `brute` (computes exact distances without tree approximation distortion)
-- **Neighbors ($k$):** $6$ ($1$ query movie self-match $+$ top $5$ recommendations)
+### ⚙️ Model Hyperparameters
+- **Algorithm:** `sklearn.neighbors.NearestNeighbors`
+- **Metric:** `cosine` (angular distance bounded in $[0.0, 1.0]$)
+- **Search Algorithm:** `brute` (computes exact, deterministic nearest neighbors)
+- **Neighbors ($k$):** $6$ ($1$ query movie self-match $+$ $5$ recommendations)
 
 ---
 
-## 🎯 5. Step-by-Step Concrete Walkthrough Example
+## 🎯 5. Concrete Walkthrough Example: Querying *"The Dark Knight"*
 
-Consider a user requesting recommendations for **"The Dark Knight"**:
+To understand how mathematics converts user input into recommendations:
 
-### Step 1: Raw Input Metadata
-- **Title:** The Dark Knight (2008)
-- **Director:** Christopher Nolan
-- **Top 3 Cast:** Christian Bale, Heath Ledger, Aaron Eckhart
-- **Genres:** Drama, Action, Crime, Thriller
-- **Plot Overview:** *"Batman raises the stakes in his war on crime. With the help of Lt. Jim Gordon and District Attorney Harvey Dent, Batman sets out to dismantle the remaining criminal organizations that plague the streets..."*
+### 1. User Selection
+The user chooses **"The Dark Knight"** (Index `idx = 65`).
 
-### Step 2: NLP Tokenization & Stemming
-The system parses and stems all entities:
-- Entities collapsed: `Christian Bale` $\rightarrow$ `christianbale`, `Christopher Nolan` $\rightarrow$ `christophernolan`
-- Stemmed Tag:  
-  `"batman rais the stake in his war on crime with the help of lt jim gordon and district attorney harvey dent batman set out to dismantl the remain crimin organ that plagu the street ... christianbale heathledger aaroneckhart christophernolan"`
+### 2. Stemmed Tag Generation
+```text
+"batman rais the stake in his war on crime with the help of lt jim gordon 
+and district attorney harvey dent batman set out to dismantl the remain crimin organ 
+... christianbale heathledger aaroneckhart christophernolan"
+```
 
-### Step 3: Vectorization & ML Model Query
-1. Locate index: `idx = 65`.
-2. Extract query vector: `query_vector = vectors[65].reshape(1, -1)`.
-3. Execute KNN inference: `distances, indices = knn_model.kneighbors(query_vector, n_neighbors=6)`.
+### 3. Model Inference Execution
+```python
+query_vector = vectors[65].reshape(1, -1)
+distances, indices = knn_model.kneighbors(query_vector, n_neighbors=6)
+```
 
-### Step 4: Top-5 Generated Recommendations
+### 4. Generated Output
 
 | Rank | Recommended Movie | Cosine Distance | Similarity Match % | TMDB Rating | Shared Content Attributes |
 |:---:|---|:---:|:---:|:---:|---|
-| **1** | **The Dark Knight Rises** | `0.5774` | **42.3%** | 7.6 / 10 | Same director (Nolan), lead actor (Bale), DC Gotham universe |
-| **2** | **Batman Begins** | `0.5978` | **40.2%** | 7.5 / 10 | Origin story, same director (Nolan), lead actor (Bale) |
-| **3** | **Batman Returns** | `0.6686` | **33.1%** | 6.6 / 10 | DC Comics, Gotham City vigilante, superhero crime thriller |
-| **4** | **Batman Forever** | `0.7059` | **29.4%** | 5.2 / 10 | DC Comics, Gotham villains, Batmobile, masked vigilante |
-| **5** | **Batman** | `0.7233` | **27.7%** | 7.0 / 10 | Classic Gotham lore, Joker adversary, Tim Burton DC adaptation |
+| **1** | **The Dark Knight Rises** | `0.5774` | **42.3%** | ⭐ 7.6 / 10 | Director (Nolan), Lead (Bale), DC Gotham universe |
+| **2** | **Batman Begins** | `0.5978` | **40.2%** | ⭐ 7.5 / 10 | Origin story, Director (Nolan), Lead (Bale) |
+| **3** | **Batman Returns** | `0.6686` | **33.1%** | ⭐ 6.6 / 10 | DC Comics, Gotham City vigilante, superhero crime |
+| **4** | **Batman Forever** | `0.7059` | **29.4%** | ⭐ 5.2 / 10 | DC Comics, Gotham villains, Batmobile |
+| **5** | **Batman** | `0.7233` | **27.7%** | ⭐ 7.0 / 10 | Classic Gotham lore, Joker adversary, Tim Burton |
 
 ---
 
 ## 🔌 6. Backend Integration (`app.py`)
 
-The backend server is implemented in Python using Streamlit.
+The backend server is built using **Streamlit** and Python:
 
-### 1. In-Memory Model Caching (`@st.cache_resource`)
-Recomputing the similarity matrix on every request would take 20+ seconds. The backend loads the pre-trained weights once into RAM:
-
+### 1. In-Memory RAM Caching (`@st.cache_resource`)
+Re-training or re-calculating 4,806 vectors on every browser click would freeze the application. The backend uses Streamlit caching to load weights once:
 ```python
 @st.cache_resource
 def load_data():
@@ -169,96 +181,70 @@ movies, similarity, knn_model = load_data()
 ```
 
 ### 2. Sub-5 Millisecond Inference
-Given a query movie, recommendations are produced in less than 5 milliseconds:
-```python
-def get_recommendations(movie_title, top_k=5, selected_genre="All"):
-    idx = movies[movies['title'] == movie_title].index[0]
-    distances = list(enumerate(similarity[idx]))
-    sorted_dists = sorted(distances, key=lambda x: x[1], reverse=True)
-    # Filter by user genre and return top_k candidates
-```
+Slicing `similarity[idx]` or executing `knn_model.kneighbors()` takes **less than 5 milliseconds** because the model is already memory-resident.
 
 ### 3. Concurrent Multi-Source Poster Pipeline
-Raw TMDB CSV files do not contain image URLs. To prevent slow sequential HTTP requests, posters are fetched in parallel using `ThreadPoolExecutor`:
-- **Tier 1:** OMDb REST API (`http://www.omdbapi.com/?t={title}&apikey=trilogy`) with 1.8s timeout.
-- **Tier 2 (Fallback):** Wikipedia Search & Summary REST API (`https://en.wikipedia.org/api/rest_v1/page/summary/{key}`).
-- **Tier 3 (Fallback):** High-definition Unsplash cinema still image.
-- **Acceleration:** 5 parallel worker threads reduce loading latency from 8+ seconds to under 1.5 seconds.
+Raw CSVs contain no images. Posters are fetched dynamically:
+- **Tier 1:** OMDb REST API (`http://www.omdbapi.com/?t={title}&apikey=trilogy`) with a 1.8s timeout.
+- **Tier 2 (Fallback):** Wikipedia Search and Page Summary REST API.
+- **Tier 3 (Fallback):** High-definition cinema placeholder from Unsplash.
+- **Parallel Acceleration:** `ThreadPoolExecutor(max_workers=5)` requests all 5 movie posters simultaneously, reducing page load latency from 8+ seconds to under 1.5 seconds.
 
 ---
 
 ## 🎨 7. Frontend Presentation (`app.py`)
 
-The user interface uses modern web aesthetics via custom injected CSS:
+The frontend delivers a modern cinema interface:
 
-1. **Cinema Dark Glassmorphism:**
-   - Card backgrounds: `linear-gradient(145deg, #1e293b, #0f172a)`
-   - Border radius: `16px` with subtle glowing border `rgba(255, 255, 255, 0.1)`
-   - Hover micro-interactions: Smooth vertical elevation (`transform: translateY(-6px)`) with purple glow shadow (`#a855f7`).
-2. **Dynamic Visual Badges:**
-   - ⚡ **Similarity Match:** Emerald green badge (`#34d399`) showing exact calculated match percentage.
-   - ⭐ **TMDB Rating:** Amber star badge (`#fbbf24`) displaying critic rating.
-   - 🟣 **Genre Tags:** Indigo pills (`#a5b4fc`) indicating categories.
-3. **Interactive Modals:**
-   - Each movie card includes an expandable drawer revealing full synopsis, director credit, cast list, and a direct link to watch the official movie trailer on YouTube.
-4. **Sidebar Controls:**
-   - Real-time recommendation count slider ($K = 3$ to $12$).
-   - Live genre filter dropdown.
-   - Real-time dataset & ML model architecture summary.
+- 🌌 **Cinema Glassmorphism Cards:** Custom CSS with dark gradients (`#1e293b` to `#0f172a`), translucent borders, and smooth hover elevation (`translateY(-6px)`).
+- 🏷️ **Dynamic Visual Badges:**
+  - ⚡ **Match Percentage:** Emerald green pill (`#34d399`) showing exact mathematical score.
+  - ⭐ **TMDB Rating:** Amber star pill (`#fbbf24`).
+  - 🟣 **Genre Tags:** Indigo category pills (`#a5b4fc`).
+- 📖 **Interactive Detail Drawers:** Expandable accordion reveals the complete plot synopsis, director, cast members, and a direct link to the official YouTube movie trailer.
+- ⚙️ **Interactive Sidebar:** User controls to adjust the recommendation count ($K = 3 \text{ to } 12$), filter by specific genre, and review dataset/ML model metrics.
 
 ---
 
-## 🚀 8. How to Run the Project Locally
+## 🚀 8. Quickstart: Running the Application Locally
 
-### Prerequisites
-- Python 3.10+ (tested on Python 3.13)
-- Git
-
-### Setup Steps
 ```bash
-# 1. Clone the repository
+# 1. Clone repository
 git clone https://github.com/Nandinimane511/movie-recommender-system.git
 cd movie-recommender-system
 
-# 2. Create and activate a virtual environment
-python -m venv .venv
-.\.venv\Scripts\activate      # Windows
-source .venv/bin/activate       # macOS / Linux
+# 2. Activate virtual environment
+.\.venv\Scripts\activate        # On Windows
+# source .venv/bin/activate     # On macOS/Linux
 
 # 3. Install dependencies
 pip install -r requirements.txt
 
-# 4. (Optional) Re-train the model pipeline
-python preprocess.py
-
-# 5. Launch the Web Application
+# 4. Launch the application
 streamlit run app.py
 ```
-
-The web application will open automatically at **`http://localhost:8501`**.
+Open **`http://localhost:8501`** in your browser to view the application.
 
 ---
 
-## 📂 9. Project Directory Structure
+## 📁 9. Clean Repository Structure
 
 ```text
 movie-recommender-system/
-├── .venv/                                                      # Virtual environment (dependencies)
-├── model/                                                      # Serialized trained model weights
-│   ├── movie_list.pkl                                          # Preprocessed metadata DataFrame
-│   ├── similarity.pkl                                          # Precomputed Cosine Similarity Matrix
-│   └── knn_model.pkl                                           # Trained K-Nearest Neighbors ML Model
-├── visualizations/                                             # High-resolution chart figures
-│   ├── Fig_3_1_Correlation_Matrix.png                          # Correlation Heatmap
-│   └── Fig_3_2_Cosine_Similarity_Matrix.png                    # Cosine Similarity Heatmap
+├── .venv/                                                      # Virtual environment
+├── model/                                                      # Serialized ML model weights
+│   ├── movie_list.pkl                                          # Preprocessed metadata
+│   ├── similarity.pkl                                          # Cosine Similarity Matrix
+│   └── knn_model.pkl                                           # Trained KNN ML Model
+├── visualizations/                                             # High-resolution charts
 ├── tmdb_5000_movies.csv                                        # Raw TMDB Movies Dataset
 ├── tmdb_5000_credits.csv                                       # Raw TMDB Credits Dataset
-├── Movie_Recommendation_System_EDA.ipynb                       # Complete, fully executed Jupyter Notebook
-├── app.py                                                      # Production Streamlit Web App (Backend + Frontend)
+├── Movie_Recommendation_System_EDA.ipynb                       # Complete executed Jupyter Notebook
+├── app.py                                                      # Production Streamlit App (Backend + Frontend)
 ├── preprocess.py                                               # Automated training pipeline script
-├── requirements.txt                                            # Python dependencies
-├── README.md                                                   # GitHub repository overview
-├── DOCUMENTATION.md                                            # 📄 This complete system documentation file
+├── requirements.txt                                            # Project dependencies
+├── README.md                                                   # Repository overview
+├── DOCUMENTATION.md                                            # 📄 Complete system documentation
 └── CineMatch_AI_System_Architecture_and_Working_Guide.docx      # Comprehensive Word Report Document
 ```
 
